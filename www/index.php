@@ -1,81 +1,142 @@
 <?php
+session_start();
 require 'database.php';
 
-// Nieuwe fiets toevoegen
+// Is de bezoeker ingelogd als admin?
+$isAdmin = ($_SESSION['role'] ?? '') === 'admin';
+
+$fout = '';
+
+// Fiets toevoegen
 if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['toevoegen'])) {
-    $sql = "INSERT INTO fiets (merk, type, prijs_per_dag, beschikbaar)
-            VALUES (:merk, :type, :prijs, 1)";
-    $stmt = $pdo->prepare($sql);
-    $stmt->execute([
-        ':merk'  => $_POST['merk'],
-        ':type'  => $_POST['type'],
-        ':prijs' => $_POST['prijs_per_dag'],
-    ]);
+    if (!$isAdmin) {
+        header('Location: login.php');
+        exit;
+    }
+
+    $foto = $_FILES['photo'] ?? null;
+    $toegestaan = ['image/jpeg' => 'jpg', 'image/png' => 'png', 'image/webp' => 'webp'];
+
+    if (!$foto || $foto['error'] !== UPLOAD_ERR_OK) {
+        $fout = 'Kies een foto om te uploaden.';
+    } elseif (!isset($toegestaan[mime_content_type($foto['tmp_name'])])) {
+        $fout = 'Alleen JPG, PNG of WEBP is toegestaan.';
+    } elseif ($foto['size'] > 2 * 1024 * 1024) {
+        $fout = 'De foto mag maximaal 2 MB zijn.';
+    } else {
+        // Unieke bestandsnaam, zodat bestanden elkaar niet overschrijven
+        $extensie = $toegestaan[mime_content_type($foto['tmp_name'])];
+        $naam = bin2hex(random_bytes(8)) . '.' . $extensie;
+
+        if (!is_dir(__DIR__ . '/images')) {
+            mkdir(__DIR__ . '/images', 0755, true);
+        }
+
+        if (move_uploaded_file($foto['tmp_name'], __DIR__ . '/images/' . $naam)) {
+            $stmt = $pdo->prepare("
+                INSERT INTO bikes (bike_type_id, brand, frame_size, photo, price_per_day)
+                VALUES (:bike_type_id, :brand, :frame_size, :photo, :price_per_day)
+            ");
+            $stmt->execute([
+                ':bike_type_id'  => $_POST['bike_type_id'],
+                ':brand'         => $_POST['brand'],
+                ':frame_size'    => $_POST['frame_size'],
+                ':photo'         => $naam,
+                ':price_per_day' => $_POST['price_per_day'],
+            ]);
+            header('Location: index.php');
+            exit;
+        }
+        $fout = 'De foto kon niet worden opgeslagen. Controleer de rechten van de map images.';
+    }
+}
+
+// Fiets verwijderen (soft delete: deleted_at invullen)
+if ($_SERVER['REQUEST_METHOD'] === 'POST' && isset($_POST['verwijderen'])) {
+    if (!$isAdmin) {
+        header('Location: login.php');
+        exit;
+    }
+    $stmt = $pdo->prepare("UPDATE bikes SET deleted_at = NOW() WHERE id = :id");
+    $stmt->execute([':id' => $_POST['id']]);
     header('Location: index.php');
     exit;
 }
 
-// Fiets verwijderen
-if (isset($_GET['verwijder'])) {
-    $stmt = $pdo->prepare("DELETE FROM fiets WHERE id = :id");
-    $stmt->execute([':id' => $_GET['verwijder']]);
-    header('Location: index.php');
-    exit;
-}
+// Fietsen ophalen (zonder verwijderde)
+$stmt = $pdo->query("
+    SELECT bikes.*, bike_types.name AS type_name
+    FROM bikes
+    JOIN bike_types ON bikes.bike_type_id = bike_types.id
+    WHERE bikes.deleted_at IS NULL
+    ORDER BY bikes.brand
+");
+$bikes = $stmt->fetchAll();
 
-// Alle fietsen ophalen
-$fietsen = $pdo->query("SELECT * FROM fiets ORDER BY merk")->fetchAll();
+// Fietstypes voor het formulier
+$types = $pdo->query("SELECT id, name FROM bike_types ORDER BY name")->fetchAll();
+
+$paginaTitel = 'Fietsen - TrapKracht';
+require 'header.php';
 ?>
-<!DOCTYPE html>
-<html lang="nl">
-<head>
-    <meta charset="UTF-8">
-    <title>Fietsenverhuur</title>
-    <style>
-        body { font-family: sans-serif; max-width: 800px; margin: 2rem auto; }
-        table { border-collapse: collapse; width: 100%; margin-bottom: 2rem; }
-        th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
-        th { background: #eee; }
-    </style>
-</head>
-<body>
-    <h1>Fietsenverhuur</h1>
 
-    <table>
-        <tr>
-            <th>ID</th><th>Merk</th><th>Type</th>
-            <th>Prijs per dag</th><th>Beschikbaar</th><th></th>
-        </tr>
-        <?php foreach ($fietsen as $fiets): ?>
-            <tr>
-                <td><?= $fiets['id'] ?></td>
-                <td><?= htmlspecialchars($fiets['merk']) ?></td>
-                <td><?= htmlspecialchars($fiets['type']) ?></td>
-                <td>€ <?= number_format($fiets['prijs_per_dag'], 2, ',', '.') ?></td>
-                <td><?= $fiets['beschikbaar'] ? 'Ja' : 'Nee' ?></td>
-                <td>
-                    <a href="index.php?verwijder=<?= $fiets['id'] ?>"
-                       onclick="return confirm('Weet je het zeker?')">Verwijder</a>
-                </td>
-            </tr>
-        <?php endforeach; ?>
-    </table>
+<h2>Onze fietsen</h2>
 
-    <h2>Fiets toevoegen</h2>
-    <form method="post">
-        <p><label>Merk: <input type="text" name="merk" required></label></p>
-        <p>
-            <label>Type:
-                <select name="type">
-                    <option>Stadsfiets</option>
-                    <option>E-bike</option>
-                    <option>Tandem</option>
-                    <option>Bakfiets</option>
-                </select>
-            </label>
-        </p>
-        <p><label>Prijs per dag: <input type="number" step="0.01" name="prijs_per_dag" required></label></p>
-        <button type="submit" name="toevoegen">Toevoegen</button>
-    </form>
-</body>
-</html>
+<div class="bike-grid">
+    <?php foreach ($bikes as $bike): ?>
+        <?php
+        $fotoBestand = basename($bike['photo']);
+        $fotoBestaat = file_exists(__DIR__ . '/images/' . $fotoBestand);
+        ?>
+        <article class="bike-card">
+            <a class="bike-link" href="bike.php?id=<?= $bike['id'] ?>">
+                <?php if ($fotoBestaat): ?>
+                    <img src="images/<?= htmlspecialchars($fotoBestand) ?>"
+                         alt="<?= htmlspecialchars($bike['brand'] . ' ' . $bike['type_name']) ?>">
+                <?php else: ?>
+                    <div class="bike-noimg">Geen foto</div>
+                <?php endif; ?>
+
+                <div class="bike-info">
+                    <h3><?= htmlspecialchars($bike['brand']) ?></h3>
+                    <p class="bike-type"><?= htmlspecialchars($bike['type_name']) ?> &middot; <?= $bike['frame_size'] ?> cm</p>
+                    <p class="bike-price">€ <?= number_format($bike['price_per_day'], 2, ',', '.') ?> per dag</p>
+                </div>
+            </a>
+
+            <?php if ($isAdmin): ?>
+                <form class="bike-admin" method="post" onsubmit="return confirm('Weet je het zeker?')">
+                    <input type="hidden" name="id" value="<?= $bike['id'] ?>">
+                    <button type="submit" name="verwijderen">Verwijder</button>
+                </form>
+            <?php endif; ?>
+        </article>
+    <?php endforeach; ?>
+</div>
+
+<?php if ($isAdmin): ?>
+<h2>Fiets toevoegen</h2>
+
+<?php if ($fout): ?>
+    <p class="fout"><?= htmlspecialchars($fout) ?></p>
+<?php endif; ?>
+
+<form method="post" enctype="multipart/form-data">
+    <p><label>Merk: <input type="text" name="brand" required></label></p>
+    <p>
+        <label>Type:
+            <select name="bike_type_id">
+                <?php foreach ($types as $type): ?>
+                    <option value="<?= $type['id'] ?>"><?= htmlspecialchars($type['name']) ?></option>
+                <?php endforeach; ?>
+            </select>
+        </label>
+    </p>
+    <p><label>Framemaat (cm): <input type="number" name="frame_size" required></label></p>
+    <p><label>Foto (JPG, PNG of WEBP, max 2 MB): <input type="file" name="photo" accept="image/jpeg,image/png,image/webp" required></label></p>
+    <p><label>Prijs per dag: <input type="number" step="0.01" name="price_per_day" required></label></p>
+    <button type="submit" name="toevoegen">Toevoegen</button>
+</form>
+<?php endif; ?>
+
+<?php require 'footer.php'; ?>

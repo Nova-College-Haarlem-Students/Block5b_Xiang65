@@ -1,0 +1,127 @@
+* { box-sizing: border-box; }
+
+body {
+    font-family: sans-serif;
+    margin: 0;
+    color: #222;
+    background: #f7f7f7;
+}
+
+.site-header {
+    background: #1b6b3a;
+    color: #fff;
+    padding: 1rem 2rem;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+}
+.site-header h1 { margin: 0; }
+.site-header nav a { color: #fff; text-decoration: none; margin-left: 1rem; }
+.site-header nav a:hover { text-decoration: underline; }
+
+main {
+    max-width: 1100px;
+    margin: 2rem auto;
+    padding: 0 1rem;
+    min-height: 60vh;
+}
+
+table { border-collapse: collapse; width: 100%; margin-bottom: 2rem; background: #fff; }
+th, td { border: 1px solid #ccc; padding: 8px; text-align: left; }
+th { background: #eee; }
+
+form p { margin: 0.75rem 0; }
+button { cursor: pointer; padding: 6px 12px; }
+
+.site-footer {
+    background: #222;
+    color: #ccc;
+    text-align: center;
+    padding: 1rem;
+}
+.site-footer p { margin: 0; }
+
+.site-header nav span { margin-left: 1rem; opacity: 0.85; }
+
+.fout {
+    background: #fde8e8;
+    border: 1px solid #e0a0a0;
+    color: #8a1f1f;
+    padding: 8px 12px;
+}
+
+/* Fietsen in een raster: 4 per rij, daarna naar beneden */
+.bike-grid {
+    display: grid;
+    grid-template-columns: repeat(4, 1fr);
+    gap: 1.25rem;
+    margin-bottom: 2rem;
+}
+
+.bike-card {
+    background: #fff;
+    border: 1px solid #ddd;
+    border-radius: 8px;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+}
+
+/* Alle foto's krijgen dezelfde vaste verhouding, ook als het origineel anders is */
+.bike-card img,
+.bike-noimg {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    display: block;
+}
+
+.bike-noimg {
+    background: #e5e5e5;
+    color: #777;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.bike-info { padding: 0.75rem 1rem 1rem; }
+.bike-info h3 { margin: 0 0 0.25rem; }
+.bike-info p { margin: 0.25rem 0; }
+.bike-type { color: #666; }
+.bike-price { font-weight: bold; }
+.bike-info form { margin-top: 0.75rem; }
+
+@media (max-width: 900px) {
+    .bike-grid { grid-template-columns: repeat(2, 1fr); }
+}
+@media (max-width: 500px) {
+    .bike-grid { grid-template-columns: 1fr; }
+}
+
+/* Klikbare kaarten */
+.bike-link {
+    color: inherit;
+    text-decoration: none;
+    display: block;
+}
+.bike-card { transition: box-shadow 0.15s; }
+.bike-card:hover { box-shadow: 0 4px 12px rgba(0, 0, 0, 0.15); }
+.bike-admin { padding: 0 1rem 1rem; margin: 0; }
+
+/* Detailpagina */
+.bike-detail {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 2rem;
+    align-items: start;
+}
+.bike-detail img,
+.bike-detail .bike-noimg {
+    width: 100%;
+    aspect-ratio: 4 / 3;
+    object-fit: cover;
+    border-radius: 8px;
+}
+@media (max-width: 700px) {
+    .bike-detail { grid-template-columns: 1fr; }
+}
